@@ -11,6 +11,7 @@ public class VolmaticDockItem : DockletItem
     private Gdk.Pixbuf icon_pixbuf;
     private VolmaticDockItemPreferences prefs;
     private string sink_id = "0";
+    protected uint64 last_sound_time = 0;
 
     public VolmaticDockItem.with_dockitem_file(GLib.File file) {
         GLib.Object(Prefs: new VolmaticDockItemPreferences.with_file(file));
@@ -52,11 +53,13 @@ public class VolmaticDockItem : DockletItem
             string vol_str = get_volume();
             if(vol_str != "100" && vol_str != "0")
             {
-               Process.spawn_command_line_async("paplay /usr/share/sounds/freedesktop/stereo/message.oga");
-               var popover = new Gtk.Popover(this);
-popover.set_position(Gtk.PositionType.BOTTOM);
-popover.add(new Gtk.Label(vol_str));
-popover.show_all();
+                uint64 now = GLib.get_real_time();
+                if(now - last_sound_time > 150000) // 150 мс
+                {
+                    Process.spawn_command_line_async("paplay /usr/share/sounds/freedesktop/stereo/message.oga");
+                    last_sound_time = now;
+                }
+
             }
             double current = int.parse(vol_str) / 100.0;
             double step = 0.05; // 5%
@@ -106,7 +109,50 @@ popover.show_all();
     {
         string vol = get_volume(); // з попереднього прикладу
         Text = "🔊 " + vol + "%";
+
+        try {
+            // Завантаження іконки
+            var pixbuf = new Gdk.Pixbuf.from_resource(Volmatic.G_RESOURCE_PATH + "/icons/volmatic_icon.png");
+            int width = pixbuf.get_width();
+            int height = pixbuf.get_height();
+
+            var surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, width, height);
+            var cr = new Cairo.Context(surface);
+
+            // Малюємо іконку
+            Gdk.cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
+            cr.paint();
+
+            // Параметри кола
+            double volume = double.parse(get_volume()) / 100.0; // 0..1
+            int margin = 32; // внутрішній відступ
+            int line_width = 12;
+
+            int cx = width / 2;
+            int cy = height / 2;
+            int radius = ((width < height) ? width : height - margin * 2) / 2;
+
+            cr.set_line_width(line_width);
+            cr.set_source_rgb(0.4, 0.4, 0.4); // зелений
+            cr.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * volume);
+            cr.stroke();
+
+            string tmpfile = "/tmp/volmatic_overlay.png?ts=" + GLib.get_real_time().to_string();
+            surface.write_to_png(tmpfile);
+            Icon = "file://" + tmpfile;
+
+            stderr.printf("update\n");
+        }
+        catch(Error e) {
+            warning("Failed to generate icon overlay: %s", e.message);
+            stderr.printf("Failed to generate icon overlay: %s", e.message);
+        }
+
+
+
     }
+
+
 
 
     string get_volume()
@@ -141,6 +187,7 @@ popover.show_all();
 
         return "0";
     }
+
 
     string get_active_sink_id()
     {
@@ -227,6 +274,4 @@ popover.show_all();
 
 }
 }
-
-
 
