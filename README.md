@@ -14,7 +14,8 @@ A volume control docklet for Plank Reloaded using wpctl for managing PulseAudio/
 - gtk+-3.0
 - plank-reloaded
 - glib-2.0
-- json-glib-1.0
+- gee-0.8
+- wpctl (for volume control)
 
 ## Installation
 
