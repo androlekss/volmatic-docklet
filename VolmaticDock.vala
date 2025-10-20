@@ -5,7 +5,7 @@ public static void docklet_init(Plank.DockletManager manager)
 
 namespace Volmatic {
 
-public const string G_RESOURCE_PATH = "/at/greyh/volmatic";
+public const string G_RESOURCE_PATH = "/com/volmatic";
 
 public class VolmaticDocklet : Object, Plank.Docklet
 {

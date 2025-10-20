@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/at/greyh/volmatic">
-		<file>icons/volmatic_icon.png</file>
+  <gresource prefix="/com/volmatic">
+    <file>css/volmatic.css</file>
+    	<file>icons/volmatic_icon.png</file>
     <file>icons/audio-volume-medium.png</file>
     <file>icons/audio-volume-high.png</file>
     <file>icons/audio-volume-low.png</file>

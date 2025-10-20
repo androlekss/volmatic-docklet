@@ -29,7 +29,7 @@ public class VolmaticDockItem : DockletItem
 
         var css = new Gtk.CssProvider();
         try {
-            css.load_from_path("css/volmatic.css");
+            css.load_from_resource("/com/volmatic/css/volmatic.css");
         }
         catch(GLib.Error e) {
             warning("Failed to load CSS: %s".printf(e.message));
@@ -406,4 +406,5 @@ public class VolmaticDockItem : DockletItem
     }
 }
 }
+
 
