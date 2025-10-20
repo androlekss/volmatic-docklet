@@ -2,7 +2,7 @@ project(
   'volmatic-docklet-',
   'vala',
   'c',
-  version: '0.1.0',
+  version: '0.1.1',
 )
 
 # Dependencies
@@ -37,6 +37,7 @@ sources = [
   'VolmaticDock.vala',
   'VolmaticDockItem.vala',
   'VolmaticDockItemPreferences.vala',
+  'SettingsWindow.vala',
   resources,
 ]
 
@@ -46,6 +47,6 @@ shared_module(
   sources,
   dependencies: [gtk_dep, plank_dep, gee, json_dep],
   install: true,
-  install_dir: join_paths(get_option('libdir'), 'plank/docklets'),
-  #install_dir: '/usr/lib/x86_64-linux-gnu/plank/docklets',
+  #install_dir: join_paths(get_option('libdir'), 'plank/docklets'),
+  install_dir: '/usr/lib/x86_64-linux-gnu/plank/docklets',
 )

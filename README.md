@@ -49,6 +49,28 @@ After installation, open the Plank Reloaded settings, navigate to "Docklets", an
 - The popup label shows the current volume percentage and hints:
 “Scroll to adjust volume”
 
+## Optional: Show current media information
+    If you'd like VolMatic to display the current track and artist (media info), you need to:
+    Install playerctl, a command-line utility that interacts with MPRIS-compatible media players:
+```bash
+# Debian/Ubuntu
+sudo apt install playerctl
+
+# Fedora
+sudo dnf install playerctl
+
+# Arch Linux
+sudo pacman -S playerctl
+```
+    Enable the corresponding setting in VolMatic preferences (e.g. Show media info).playerctl works with most MPRIS-compatible players, including:
+    Spotify
+    VLC
+    Chrome / Firefox (media tabs)
+    Rhythmbox
+    and many others
+    If playerctl is not installed or no compatible player is running, media info will not be shown.
+    ![App Screenshot](assets/playerctl.png)
+
 ## Integration Details
 
 - Uses Plank DockletItem API to handle hover and scroll events.

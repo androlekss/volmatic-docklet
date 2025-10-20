@@ -7,25 +7,47 @@ public class VolmaticDockItem : DockletItem
 {
 
     private VolmaticDockItemPreferences prefs;
+    private SettingsWindow? settings_window = null;
+    private Gtk.Label playerctl_label;
     private Gtk.Window? volume_popup = null;
     private Gtk.Label? volume_label = null;
     private Gtk.Label? hint_label = null;
     private string sink_id = "0";
+    private int? saved_volume = null;
     private uint64 last_change_time = 0;
     private bool hovered_state = false;
-    private double step = 0.0;
+    public double step {
+        [Notify]
+        get; set; default = 0.05;
+    }
 
     public VolmaticDockItem.with_dockitem_file(GLib.File file) {
         GLib.Object(Prefs: new VolmaticDockItemPreferences.with_file(file));
     }
 
     construct {
+
+        var css = new Gtk.CssProvider();
+        try {
+            css.load_from_path("css/volmatic.css");
+        }
+        catch(GLib.Error e) {
+            warning("Failed to load CSS: %s".printf(e.message));
+        }
+
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            css,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            );
+
         prefs = (VolmaticDockItemPreferences) Prefs;
         step = prefs.step;
         sink_id = get_active_sink_id();
         hint_label = new Gtk.Label("Scroll to adjust volume");
         update_volume_popup();
     }
+
 
     protected override AnimationType on_hovered()
     {
@@ -51,7 +73,7 @@ public class VolmaticDockItem : DockletItem
     {
         try {
 
-            int vol = get_current_volume_percent();
+            int vol = get_current_volume();
             uint64 now = GLib.get_real_time();
             if(now - last_change_time > 150000)
             {
@@ -119,6 +141,19 @@ public class VolmaticDockItem : DockletItem
             update_volume_popup();
             box.pack_start(volume_label, false, false, 0);
             box.pack_start(hint_label, false, false, 0);
+
+            playerctl_label = new Gtk.Label("");
+            playerctl_label.set_max_width_chars(30);
+            playerctl_label.set_line_wrap(true);
+            playerctl_label.get_style_context().add_class("media-info");
+            playerctl_label.set_halign(Gtk.Align.FILL);
+
+            if(prefs.show_media_info)
+            {
+                playerctl_label.set_text(get_playerctl_info());
+                box.pack_start(playerctl_label, false, false, 0);
+            }
+
             volume_popup.add(box);
             volume_popup.show_all();
         }
@@ -172,7 +207,7 @@ public class VolmaticDockItem : DockletItem
             volume_label = new Gtk.Label("");
         }
 
-        int current_volume = get_current_volume_percent();
+        int current_volume = get_current_volume();
         volume_label.set_text("🔊 Volume: %d%%".printf(current_volume));
 
         if(current_volume == 0)
@@ -197,12 +232,37 @@ public class VolmaticDockItem : DockletItem
         }
     }
 
+    private string get_playerctl_info()
+    {
+        try {
+            string? stdout;
+            string? stderr;
+            int exit_status;
+
+            GLib.Process.spawn_command_line_sync(
+                "playerctl metadata --format '{{status}}: {{artist}} - {{title}}'",
+                out stdout,
+                out stderr,
+                out exit_status
+                );
+
+            if(exit_status == 0 && stdout != null)
+                return stdout.strip();
+        }
+        catch(Error e) {
+            warning("playerctl error: " + e.message);
+        }
+
+        return "No media info";
+    }
+
+
     void update_volume_label()
     {
         show_volume_popup();
     }
 
-    private int get_current_volume_percent()
+    private int get_current_volume()
     {
         try {
             string[] argv = {
@@ -267,16 +327,83 @@ public class VolmaticDockItem : DockletItem
 
     public override ArrayList<Gtk.MenuItem> get_menu_items()
     {
+        volume_popup.destroy();
+
         var items = new ArrayList<Gtk.MenuItem>();
 
         var settings_item = new Gtk.MenuItem.with_label(_("Settings"));
         settings_item.activate.connect(() => {
-                //new Quit.SettingsWindow(this, prefs);
+                open_settings_window();
             });
-        //items.add(settings_item);
+
+        string mutr_item_label = saved_volume == null ? _("Mute") : _("Unmute");
+        var mute_item = new Gtk.MenuItem.with_label(mutr_item_label);
+        mute_item.activate.connect(() => {
+
+                if(saved_volume == null)
+                {
+
+                    int current = get_current_volume();
+                    saved_volume = current;
+
+                    string[] argv = {
+                        "wpctl", "set-volume", sink_id, "0.0"
+                    };
+
+                    int status;
+                    Process.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null, null, null, out status);
+                }
+                else
+                {
+                    double current = saved_volume / 100.0;
+                    string vol_formatted = "%.2f".printf(current).replace(",", ".");
+                    string[] argv = {
+                        "wpctl", "set-volume", sink_id, vol_formatted
+                    };
+
+                    int status;
+                    Process.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null, null, null, out status);
+
+                    saved_volume = null;
+                }
+                update_volume_label();
+
+                GLib.Timeout.add(500, () => {
+                    if(volume_popup != null)
+                    {
+                        volume_popup.destroy();
+                        volume_popup = null;
+                    }
+                    return GLib.Source.REMOVE;
+                });
+            });
+
+        var separator = new Gtk.SeparatorMenuItem();
+
+        items.add(settings_item);
+        items.add(separator);
+        items.add(mute_item);
 
         return items;
     }
 
+    private void open_settings_window()
+    {
+        if(settings_window != null && settings_window.is_visible())
+        {
+            settings_window.present();
+            return;
+        }
+
+        settings_window = new SettingsWindow(this, prefs);
+        settings_window.set_destroy_with_parent(true);
+
+        settings_window.destroy.connect(() => {
+                settings_window = null;
+            });
+
+        settings_window.show_all();
+    }
 }
 }
+
