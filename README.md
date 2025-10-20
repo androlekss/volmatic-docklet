@@ -40,7 +40,6 @@ After installation, open the Plank Reloaded settings, navigate to "Docklets", an
 - Hover over the docklet icon to show the volume popup.
 - Scroll the mouse wheel over the icon to increase or decrease volume.
 - The icon automatically updates to reflect the volume level:
-- 
 - 🔇 Muted
 - 🔈 Low
 - 🔉 Medium
@@ -50,8 +49,10 @@ After installation, open the Plank Reloaded settings, navigate to "Docklets", an
 “Scroll to adjust volume”
 
 ## Optional: Show current media information
-    If you'd like VolMatic to display the current track and artist (media info), you need to:
-    Install playerctl, a command-line utility that interacts with MPRIS-compatible media players:
+
+If you'd like VolMatic to display the current track and artist (media info), you need to:
+Install playerctl, a command-line utility that interacts with MPRIS-compatible media players:
+
 ```bash
 # Debian/Ubuntu
 sudo apt install playerctl
@@ -62,14 +63,17 @@ sudo dnf install playerctl
 # Arch Linux
 sudo pacman -S playerctl
 ```
-    Enable the corresponding setting in VolMatic preferences (e.g. Show media info).playerctl works with most MPRIS-compatible players, including:
-    Spotify
-    VLC
-    Chrome / Firefox (media tabs)
-    Rhythmbox
-    and many others
-    If playerctl is not installed or no compatible player is running, media info will not be shown.
-    ![App Screenshot](assets/playerctl.png)
+##  Enable the corresponding setting in VolMatic preferences (e.g. Show media info).
+
+Playerctl works with most MPRIS-compatible players, including:
+- Spotify
+- VLC
+- Chrome / Firefox (media tabs)
+- Rhythmbox
+  and many others
+  If playerctl is not installed or no compatible player is running, media info will not be shown.
+  
+  ![App Screenshot](assets/playerctl.png)
 
 ## Integration Details
 
@@ -83,6 +87,10 @@ sudo pacman -S playerctl
 - Initial release with hover popup and scroll-based volume adjustment.
 - Automatic icon updates for volume levels.
 - Compatible with PulseAudio and PipeWire using wpctl.
+
+## What’s new in 0.1.2
+
+- Add support for media info via playerctl
 
 ## License
 
