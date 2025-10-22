@@ -5,15 +5,13 @@ namespace Volmatic {
 
 public class VolmaticDockItem : DockletItem
 {
-
     private VolmaticDockItemPreferences prefs;
+    private SinkState state;
     private SettingsWindow? settings_window = null;
     private Gtk.Label playerctl_label;
     private Gtk.Window? volume_popup = null;
     private Gtk.Label? volume_label = null;
     private Gtk.Label? hint_label = null;
-    private string sink_id = "0";
-    private int? saved_volume = null;
     private uint64 last_change_time = 0;
     private bool hovered_state = false;
     public double step {
@@ -28,6 +26,7 @@ public class VolmaticDockItem : DockletItem
     construct {
 
         var css = new Gtk.CssProvider();
+
         try {
             css.load_from_resource("/com/volmatic/css/volmatic.css");
         }
@@ -43,7 +42,14 @@ public class VolmaticDockItem : DockletItem
 
         prefs = (VolmaticDockItemPreferences) Prefs;
         step = prefs.step;
-        sink_id = get_active_sink_id();
+
+        var state = new WpctlState().get_active_sink();
+        if(state != null)
+        {
+            stdout.printf("Sink %d (%s): vol=%d muted=%s\n",
+                          state.id, state.name, state.volume, state.muted.to_string());
+        }
+
         hint_label = new Gtk.Label("Scroll to adjust volume");
         update_volume_popup();
     }
@@ -63,7 +69,7 @@ public class VolmaticDockItem : DockletItem
         if(hovered_state)
         {
             show_volume_popup();
-            sink_id = get_active_sink_id();
+            state = new WpctlState().get_active_sink();
         }
 
         return AnimationType.NONE;
@@ -73,7 +79,7 @@ public class VolmaticDockItem : DockletItem
     {
         try {
 
-            int vol = get_current_volume();
+            int vol = state.volume;
             uint64 now = GLib.get_real_time();
             if(now - last_change_time > 150000)
             {
@@ -100,11 +106,28 @@ public class VolmaticDockItem : DockletItem
 
                 string vol_formatted = "%.2f".printf(current).replace(",", ".");
                 string[] argv = {
-                    "wpctl", "set-volume", sink_id, vol_formatted
+                    "wpctl", "set-volume", state.id.to_string(), vol_formatted
                 };
 
                 int status;
                 Process.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null, null, null, out status);
+                string muted = "0";
+                if(current == 0.0)
+                {
+                    muted = "1";
+                }
+
+                argv = {
+                    "wpctl", "set-mute", state.id.to_string(), muted
+                };
+
+                try {
+                    Process.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null, null, null, out status);
+                }
+                catch(GLib.SpawnError e) {
+                    warning("Failed to spawn process: %s".printf(e.message));
+                }
+
                 update_volume_label();
             }
 
@@ -139,6 +162,7 @@ public class VolmaticDockItem : DockletItem
             var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
             box.set_border_width(6);
             update_volume_popup();
+            hint_label.get_style_context().add_class("hint");
             box.pack_start(volume_label, false, false, 0);
             box.pack_start(hint_label, false, false, 0);
 
@@ -207,10 +231,11 @@ public class VolmaticDockItem : DockletItem
             volume_label = new Gtk.Label("");
         }
 
-        int current_volume = get_current_volume();
+        state = new WpctlState().get_active_sink();
+        int current_volume = state.volume;
         volume_label.set_text("🔊 Volume: %d%%".printf(current_volume));
 
-        if(current_volume == 0)
+        if(state.muted)
         {
             volume_label.set_text("🔇 Muted");
             Icon = "resource://" + Volmatic.G_RESOURCE_PATH + "/icons/audio-volume-muted.png";
@@ -262,69 +287,6 @@ public class VolmaticDockItem : DockletItem
         show_volume_popup();
     }
 
-    private int get_current_volume()
-    {
-        try {
-            string[] argv = {
-                "bash", "-c",
-                "wpctl status | awk '/Sinks:/,/Sources:/' | grep '\\*' | sed -n 's/.*\\[vol: *\\([0-9.]*\\)\\].*/\\1/p'"
-            };
-
-            string? stdout;
-            string? stderr;
-            int status;
-
-            Process.spawn_sync(
-                null, argv, null,
-                GLib.SpawnFlags.SEARCH_PATH,
-                null,
-                out stdout, out stderr, out status
-                );
-
-            if(stdout != null && stdout.strip().length > 0)
-            {
-                double vol = double.parse(stdout.strip());
-                return ((int)(vol * 100));
-            }
-
-        }
-        catch(Error e) {
-            warning("Error getting volume: %s", e.message);
-        }
-
-        return 0;
-    }
-
-    string get_active_sink_id()
-    {
-        try {
-            string[] argv = {
-                "bash", "-c",
-                "wpctl status | awk '/Sinks:/,/Sources:/' | grep '\\*' | sed -n 's/.*\\* *\\([0-9]\\+\\)\\..*/\\1/p'"
-            };
-
-            string? stdout;
-            string? stderr;
-            int status;
-
-            Process.spawn_sync(
-                null, argv, null,
-                GLib.SpawnFlags.SEARCH_PATH,
-                null,
-                out stdout, out stderr, out status
-                );
-
-            if(stdout != null && stdout.strip().length > 0)
-                return stdout.strip();
-
-        }
-        catch(Error e) {
-            warning("Error getting active sink id: %s", e.message);
-        }
-
-        return "0";
-    }
-
     public override ArrayList<Gtk.MenuItem> get_menu_items()
     {
         volume_popup.destroy();
@@ -336,36 +298,21 @@ public class VolmaticDockItem : DockletItem
                 open_settings_window();
             });
 
-        string mutr_item_label = saved_volume == null ? _("Mute") : _("Unmute");
+        string mutr_item_label = state.muted ? _("Unmute") : _("Mute");
+
         var mute_item = new Gtk.MenuItem.with_label(mutr_item_label);
         mute_item.activate.connect(() => {
 
-                if(saved_volume == null)
-                {
+                string[] argv = { "wpctl", "set-mute", state.id.to_string(), "toggle" };
 
-                    int current = get_current_volume();
-                    saved_volume = current;
-
-                    string[] argv = {
-                        "wpctl", "set-volume", sink_id, "0.0"
-                    };
-
-                    int status;
+                int status;
+                try {
                     Process.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null, null, null, out status);
                 }
-                else
-                {
-                    double current = saved_volume / 100.0;
-                    string vol_formatted = "%.2f".printf(current).replace(",", ".");
-                    string[] argv = {
-                        "wpctl", "set-volume", sink_id, vol_formatted
-                    };
-
-                    int status;
-                    Process.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null, null, null, out status);
-
-                    saved_volume = null;
+                catch(GLib.SpawnError e) {
+                    warning("Failed to spawn process: %s".printf(e.message));
                 }
+
                 update_volume_label();
 
                 GLib.Timeout.add(500, () => {
@@ -406,5 +353,4 @@ public class VolmaticDockItem : DockletItem
     }
 }
 }
-
 
