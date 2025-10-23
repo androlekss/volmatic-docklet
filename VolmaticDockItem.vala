@@ -14,6 +14,8 @@ public class VolmaticDockItem : DockletItem
     private Gtk.Label? hint_label = null;
     private uint64 last_change_time = 0;
     private bool hovered_state = false;
+    private int image_width;
+    private int image_height;
     public double step {
         [Notify]
         get; set; default = 0.05;
@@ -50,10 +52,19 @@ public class VolmaticDockItem : DockletItem
                           state.id, state.name, state.volume, state.muted.to_string());
         }
 
+        var display = Gdk.Display.get_default();
+        var monitor = display.get_primary_monitor();
+        Gdk.Rectangle geometry = monitor.get_geometry();
+
+        int screen_width = geometry.width;
+        int screen_height = geometry.height;
+
+        image_width = (int)(screen_width * 0.15);
+        image_height = (int)(screen_height * 0.15);
+
         hint_label = new Gtk.Label("Scroll to adjust volume");
         update_volume_popup();
     }
-
 
     protected override AnimationType on_hovered()
     {
@@ -174,6 +185,15 @@ public class VolmaticDockItem : DockletItem
 
             if(prefs.show_media_info)
             {
+                string art_path = get_art_img();
+
+                if(GLib.FileUtils.test(art_path, GLib.FileTest.EXISTS))
+                {
+                    var pixbuf = new Gdk.Pixbuf.from_file_at_scale(art_path, image_width, image_height, true);
+                    var album_art = new Gtk.Image.from_pixbuf(pixbuf);
+                    box.pack_start(album_art, false, false, 0);
+                }
+
                 playerctl_label.set_text(get_playerctl_info());
                 box.pack_start(playerctl_label, false, false, 0);
             }
@@ -257,6 +277,33 @@ public class VolmaticDockItem : DockletItem
         }
     }
 
+    private string get_art_img()
+    {
+        try {
+            string? stdout;
+            string? stderr;
+            int exit_status;
+
+            GLib.Process.spawn_command_line_sync(
+                "playerctl metadata --format '{{mpris:artUrl}}'",
+                out stdout,
+                out stderr,
+                out exit_status
+                );
+            stdout.printf("stdout");
+            if(exit_status == 0 && stdout != null)
+            {
+                return stdout.replace("file://", "").strip();
+            }
+        }
+        catch(Error e) {
+            warning("playerctl error: " + e.message);
+        }
+
+        return "No media info";
+
+    }
+
     private string get_playerctl_info()
     {
         try {
@@ -280,7 +327,6 @@ public class VolmaticDockItem : DockletItem
 
         return "No media info";
     }
-
 
     void update_volume_label()
     {

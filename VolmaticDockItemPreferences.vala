@@ -8,7 +8,6 @@ public class VolmaticDockItemPreferences : DockItemPreferences
         get; set; default = 0.05;
     }
 
-
     public bool show_media_info {
         [Notify]
         get; set; default = false;
@@ -26,3 +25,4 @@ public class VolmaticDockItemPreferences : DockItemPreferences
 
 }
 }
+
